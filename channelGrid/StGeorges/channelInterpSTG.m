@@ -3,11 +3,19 @@ function [ASV,XSV] = channelInterpSTG(ASV,XSV,xdist,i_data,method)
 % mooring locations to fill the gaps using the prescribed method. If there
 % are insufficent points for the cubic method, resort to linear
 % interpolation. Ignore depths (leave 0) when no velocity data is present.
-% This function is specifically writen for the configuration of the 
+% This function is specifically writen for the configuration of the
 % moorings in St George's Channel.
+
+%% Flip all data to make it an eastern intensification
+ASV = fliplr(ASV);
+XSV = fliplr(XSV);
+i_data = numel(xdist) - fliplr(i_data) + 1;
+
 
 % Get size of velocity matrix
 sz = size(ASV);
+% Get index of westernmost mooring
+i_wm = i_data(1);
 
 % Loop through time
 for i = 1:sz(3)
@@ -23,8 +31,12 @@ for i = 1:sz(3)
     % Determine what data is inbetween i_start and i_end
     i_use = i_data(i_data > i_start & i_data < i_end);
     
-    % Concatenate interp points, remove duplicates    
+    % Concatenate interp points, remove duplicates
     i_all = unique([i_start i_use i_end]);
+    
+    % Check if western mooring is within the unobstructed line of depth
+    i_west = i_wm(i_wm > i_start & i_wm < i_end);
+    i_allw = unique([i_use i_end]);
     
     % Move on to next depth if i_all has less than three points
     if numel(i_all) < 3
@@ -43,20 +55,23 @@ for i = 1:sz(3)
       asv_t(i_start+1:i_end-1) = asv_t(i_use);
       xsv_t(i_start+1:i_end-1) = xsv_t(i_use);
       
-    elseif strcmp(method,'linear') || ...
-        (numel(i_all) < 4 && strcmp(method,'pchip'))
+    elseif strcmp(method,'western') && ~isempty(i_west)
+      % Assign nearest value to locations west of westernmost mooring
+      asv_t(i_start+1:i_west) = asv_t(i_west);
+      xsv_t(i_start+1:i_west) = xsv_t(i_west);
+      if numel(i_allw) > 1
+        % Apply linear interp for observations east of western mooring
+        asv_t(i_allw(1):i_end) = interp1(xdist(i_allw),...
+          asv_t(i_allw),xdist(i_allw(1):i_end));
+        xsv_t(i_allw(1):i_end) = interp1(xdist(i_allw),...
+          xsv_t(i_allw),xdist(i_allw(1):i_end));
+      end
+    else
       % Use a linear interpolation
       asv_t(i_start:i_end) = interp1(xdist(i_all),asv_t(i_all),...
         xdist(i_start:i_end));
       xsv_t(i_start:i_end) = interp1(xdist(i_all),xsv_t(i_all),...
         xdist(i_start:i_end));
-      
-    else
-      % Use a cubic interpolation
-      asv_t(i_start:i_end) = interp1(xdist(i_all),asv_t(i_all),...
-        xdist(i_start:i_end),method);
-      xsv_t(i_start:i_end) = interp1(xdist(i_all),xsv_t(i_all),...
-        xdist(i_start:i_end),method);
       
     end
     % Insert data back into ASX and XSV
@@ -64,3 +79,7 @@ for i = 1:sz(3)
     
   end
 end
+
+% Flip data back
+ASV = fliplr(ASV);
+XSV = fliplr(XSV);

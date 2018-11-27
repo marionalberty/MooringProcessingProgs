@@ -16,21 +16,20 @@ figout =[driveName 'Moorings/Figures/Gridded/Vitiaz/'];
 
 
 %% Load mooring lat & lon
-
 % East
-load([pathin 'VitiazEast/VitiazEast_linearInterp.mat'],'params')
+load([pathin 'VitiazEast/VitiazEast.mat'],'params')
 mlat(3) = params.lat;
 mlon(3) = params.lon;
 mbot(3) = params.bottomDepth;
 
 % Middle
-load([pathin 'VitiazMiddle/VitiazMiddle_linearInterp.mat'],'params')
+load([pathin 'VitiazMiddle/VitiazMiddle.mat'],'params')
 mlat(2) = params.lat;
 mlon(2) = params.lon;
 mbot(2) = params.bottomDepth;
 
 % West
-load([pathin 'VitiazWest/VitiazWest_linearInterp.mat'],'params')
+load([pathin 'VitiazWest/VitiazWest.mat'],'params')
 mlat(1) = params.lat;
 mlon(1) = params.lon;
 mbot(1) = params.bottomDepth;
@@ -50,10 +49,10 @@ bathy_GEBCO.SID = ...
   ncread('Solomon_Sea/GEBCO_2014/GEBCO_2014_SID_SolomonSea.nc','sid')';
 
 % Sandwell 30 sec
-load('Solomon_Sea/topo30_sandwell.mat')
+load('Solomon_Sea/Bathy/topo30_sandwell.mat')
 [bathy_Sandwell.lon,bathy_Sandwell.lat] = meshgrid(lon',lat');
 bathy_Sandwell.z = double(z);
-load('Solomon_Sea/topo30_SID_sandwell.mat','SID')
+load('Solomon_Sea/Bathy/topo30_SID_sandwell.mat','SID')
 bathy_Sandwell.SID = double(SID);
 clear lat lon z SID
 
@@ -163,7 +162,6 @@ print([figout 'Xsection_bathyCompare.png'],'-dpng')
 
 
 %% Load SADCP for velocity cross-section
-
 sadcp.z = [10:20:990]';
 sadcp.u = [];
 sadcp.v = [];
@@ -174,7 +172,8 @@ sadcp.lon = [];
 load('Solomon_Sea/Pandora2012/SADCP/sadcp_38.mat')
 sadcp.u = interp1(z_sadcp,u_sadcp,sadcp.z);
 sadcp.v = interp1(z_sadcp,v_sadcp,sadcp.z);
-sadcp.time = tim_sadcp';
+[yy,mm,dd,HH,MM,SS] = jd2date(tim_sadcp);
+sadcp.time = datenum(yy,mm,dd,HH,MM,SS)';
 sadcp.lat = lat_sadcp';
 sadcp.lon = lon_sadcp';
 
@@ -217,10 +216,9 @@ sadcp.lon(sadcp.lon == null) = [];
 
 
 %% Indentify all data that isn't near the cross-section
-
 % Max buffer between SADCP and line
-d_buff = 5;
-xq_v = linspace(x(1),x(2),numel(x_cgrid));
+d_buff = 20;
+xq_v = linspace(x(1),x(2),round(numel(x_cgrid)/2));
 yq_v = polyval(p,xq_v);
 
 i_keep = nan(size(sadcp.lat));
@@ -245,7 +243,6 @@ end
 clear dist
 
 %% Keep data near line
-
 sadcp.u = sadcp.u(:,logical(i_keep));
 sadcp.v = sadcp.v(:,logical(i_keep));
 sadcp.time = sadcp.time(logical(i_keep));
@@ -256,35 +253,42 @@ i_q = i_q(logical(i_keep));
 clear i_keep kk i k
 
 %% Average U & V along line
-
 uq = nan(numel(sadcp.z),numel(xq_v));
 vq = uq;
+N_av = uq;
 
 for k = 1:numel(xq_v)
   uq(:,k) = nanmean(sadcp.u(:,i_q == k),2);
   vq(:,k) = nanmean(sadcp.v(:,i_q == k),2);
+  N_av(:,k) = sum(~isnan(sadcp.u(:,i_q == k)),2);
 end
+% Mask averages with fewer than 4 points
+Nmask = ones(size(uq));
+Nmask(N_av < 4) = nan;
+uq = uq.*Nmask;
+vq = vq.*Nmask;
+% Rotate
+[xcv,acv] = uvrot(uq,vq,90-azimuth(yq_v(1),xq_v(1),yq_v(end),xq_v(end)));
+% Calc distance along x-section
+dist = [0 cumsum(m_lldist(xq_v,yq_v))'];
+
+
+%% Save SADCP mean section
+data.xdist = dist;
+data.lat = yq_v;
+data.lon = xq_v;
+data.z = sadcp.z;
+data.asv = acv;
+data.xsv = xcv;
+
+save([driveName 'sadcp_archive/Vitiaz_meanAsvXsv.mat'],'data')
 
 
 %% Plot cross-sections of velocity
-
-dist = [0 cumsum(m_lldist(xq_v,yq_v))'];
-[D,Z] = meshgrid(dist,sadcp.z);
-D = D(:);
-Z = Z(:);
-U = uq(:);
-V = vq(:);
-% remove nan
-D(isnan(V)) = [];
-Z(isnan(V)) = [];
-U(isnan(V)) = [];
-V(isnan(V)) = [];
-% Rotate
-[XCV,ACV] = uvrot(U,V,90-azimuth(yq_v(1),xq_v(1),yq_v(end),xq_v(end)));
-
 figure('position',[0 0 600 800])
 subplot(211)
-scatter(D,Z,30,XCV,'fill')
+pcolor(dist,sadcp.z,acv)
+shading interp
 hold on
 scatter(x_mgrid,zeros(size(x_mgrid)),100,'vk','fill')
 scatter(x_mgrid,mbot,100,'^k','fill')
@@ -292,56 +296,55 @@ plot(bathy_GEBCO.dist_xsec,-bathy_GEBCO.z_xsec,'k')
 axis ij tight
 colorbar
 colormap(redblue(25))
-caxis([-max(abs(XCV)) max(abs(XCV))])
-xlabel('Distance Along Cross-Section [km]')
-ylabel('Depth [m]')
-title('Vitiaz Across Channel Velocity [m/s]')
-
-subplot(212)
-scatter(D,Z,30,ACV,'fill')
-hold on
-scatter(x_mgrid,zeros(size(x_mgrid)),100,'vk','fill')
-scatter(x_mgrid,mbot,100,'^k','fill')
-plot(bathy_GEBCO.dist_xsec,-bathy_GEBCO.z_xsec,'k')
-axis ij tight
-colorbar
-colormap(redblue(25))
-caxis([-max(abs(ACV)) max(abs(ACV))])
+caxis([-1 1]*max(abs(acv(:)))*0.75)
 xlabel('Distance Along Cross-Section [km]')
 ylabel('Depth [m]')
 title('Vitiaz Along Channel Velocity [m/s]')
 
+subplot(212)
+pcolor(dist,sadcp.z,xcv)
+shading interp
+hold on
+scatter(x_mgrid,zeros(size(x_mgrid)),100,'vk','fill')
+scatter(x_mgrid,mbot,100,'^k','fill')
+plot(bathy_GEBCO.dist_xsec,-bathy_GEBCO.z_xsec,'k')
+axis ij tight
+colorbar
+colormap(redblue(25))
+caxis([-1 1]*max(abs(xcv(:)))*0.75)
+xlabel('Distance Along Cross-Section [km]')
+ylabel('Depth [m]')
+title('Vitiaz Across Channel Velocity [m/s]')
+
 print([figout 'Xsection_SADCPvelocity.png'],'-dpng')
 
 
-%% Calculate x-section shear from mean u & v
+%% Plot histogram of SADCP monthly distribution
+[~,MM,~,~,~,~] = datevec(sadcp.time);
+figure
+histogram(MM,0.5:12.5,'normalization','probability')
+xlabel('Month')
+ylabel('% of Total Profiles')
+title('Vitiaz Strait SADCP Monthly Breakdown')
 
-dist_shear = dist(1:end-1) + diff(dist)./2;
-dx = mean(diff(dist));
-% rotate
-[xcvq,acvq] = uvrot(uq,vq,90-azimuth(yq(1),xq(1),yq(end),xq(end)));
-
-dxvdx = diff(xcvq,1,2)./dx;
-davdx = diff(acvq,1,2)./dx;
+print([figout 'Xsection_MonthHistogram.png'],'-dpng')
 
 
-%% Plot Shear
+%% Calculate vertical shear from mean u & v
+% Get dz
+dz = mean(diff(sadcp.z));
+% Get new z coords
+z_shear = sadcp.z(1:end-1)+dz/2;
+% calc vertical shear
+davdz = diff(acv,1,1)./dz;
+dxvdz = diff(xcv,1,1)./dz;
 
-% Vectorize
-[DS,ZS] = meshgrid(dist_shear,sadcp.z);
-DS = DS(:);
-ZS = ZS(:);
-DXVDX = dxvdx(:);
-DAVDX = davdx(:);
-% remove nans
-DS(isnan(DAVDX)) = [];
-ZS(isnan(DAVDX)) = [];
-DXVDX(isnan(DAVDX)) = [];
-DAVDX(isnan(DAVDX)) = [];
 
+%% Plot vertical Shear
 figure('position',[0 0 600 800])
 subplot(211)
-scatter(DS,ZS,30,DXVDX,'fill')
+pcolor(dist,z_shear,davdz)
+shading interp
 hold on
 scatter(x_mgrid,zeros(size(x_mgrid)),100,'vk','fill')
 scatter(x_mgrid,mbot,100,'^k','fill')
@@ -349,13 +352,14 @@ plot(bathy_GEBCO.dist_xsec,-bathy_GEBCO.z_xsec,'k')
 axis ij tight
 colorbar
 colormap(redblue(25))
-caxis([-0.5 0.5])
+caxis([-1 1]*max(abs(davdz(:)))*0.3)
 xlabel('Distance Along Cross-Section [km]')
 ylabel('Depth [m]')
-title('Vitiaz Across Channel Horizontal Shear [m/s km]')
+title('Vitiaz Along Channel Vertical Shear [1/s]')
 
 subplot(212)
-scatter(DS,ZS,30,DAVDX,'fill')
+pcolor(dist,z_shear,dxvdz)
+shading interp
 hold on
 scatter(x_mgrid,zeros(size(x_mgrid)),100,'vk','fill')
 scatter(x_mgrid,mbot,100,'^k','fill')
@@ -363,16 +367,75 @@ plot(bathy_GEBCO.dist_xsec,-bathy_GEBCO.z_xsec,'k')
 axis ij tight
 colorbar
 colormap(redblue(25))
-caxis([-0.5 0.5])
+caxis([-1 1]*max(abs(dxvdz(:))))
+xlabel('Distance Along Cross-Section [km]')
+ylabel('Depth [m]')
+title('Vitiaz Across Channel Vertical Shear [1/s]')
+
+print([figout 'Xsection_SADCPverticalShear.png'],'-dpng')
+
+
+%% Plot mean profile of vertical shear
+davdz_bar = mean(100*davdz,2,'omitnan');
+davdz_std = std(100*davdz,0,2,'omitnan');
+figure('position',[0 0 600 400])
+herrorbar(davdz_bar,z_shear,davdz_std,'k.')
+hold on
+plot(davdz_bar,z_shear,'k')
+axis ij
+ylim([0 max(mbot)])
+xlim([min(davdz_bar-davdz_std) max(davdz_bar+davdz_std)])
+ylabel('Depth [m]')
+title('Vitiaz Mean Across Channel Vertical Shear [cm s^{-1} m^{-1}]')
+
+print([figout 'Xsection_SADCPverticalShearBar.png'],'-dpng')
+
+
+%% Calculate horizontal shear from mean u & v
+% get dx
+dist_shear = dist(1:end-1) + diff(dist)./2;
+dx = mean(diff(dist));
+% clac shear
+davdx = diff(acv,1,2)./dx;
+dxvdx = diff(xcv,1,2)./dx;
+
+
+%% Plot Horizontal Shear
+figure('position',[0 0 600 800])
+subplot(211)
+pcolor(dist_shear,sadcp.z,davdx)
+shading interp
+hold on
+scatter(x_mgrid,zeros(size(x_mgrid)),100,'vk','fill')
+scatter(x_mgrid,mbot,100,'^k','fill')
+plot(bathy_GEBCO.dist_xsec,-bathy_GEBCO.z_xsec,'k')
+axis ij tight
+colorbar
+colormap(redblue(25))
+caxis([-1 1]*max(abs(davdx(:)))*0.5)
 xlabel('Distance Along Cross-Section [km]')
 ylabel('Depth [m]')
 title('Vitiaz Along Channel Horizontal Shear [m/s km]')
+
+subplot(212)
+pcolor(dist_shear,sadcp.z,dxvdx)
+shading interp
+hold on
+scatter(x_mgrid,zeros(size(x_mgrid)),100,'vk','fill')
+scatter(x_mgrid,mbot,100,'^k','fill')
+plot(bathy_GEBCO.dist_xsec,-bathy_GEBCO.z_xsec,'k')
+axis ij tight
+colorbar
+colormap(redblue(25))
+caxis([-1 1]*max(abs(dxvdx(:)))*0.25)
+xlabel('Distance Along Cross-Section [km]')
+ylabel('Depth [m]')
+title('Vitiaz Across Channel Horizontal Shear [m/s km]')
 
 print([figout 'Xsection_SADCPhorizontalShear.png'],'-dpng')
 
 
 %% Plot locations of grid lines compared to the mooring line
-
 figure('position',[0 0 800 800])
 m_proj('lambert','long',[147.333 148.333],'lat',[-6.5 -5.5])
 m_contour(bathy_GEBCO.lon,bathy_GEBCO.lat,bathy_GEBCO.z,-1500:100:0)
@@ -389,7 +452,6 @@ print([figout 'Xsection_map.png'],'-dpng')
 
 
 %% Save bathy cross-section
-
 % Extract bathy at coarse, grid resolution
 xq = linspace(x(1),x(2),n_gp);
 yq = polyval(p,xq);

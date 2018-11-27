@@ -36,10 +36,14 @@ figure('position',[0 0 1200 800])
 ax1 = subplot(221);
 contourf(bathy.dist,z,ASV_bar,25,'linestyle','none')
 hold on
-plot(bathy.dist,bathy.z,'k')
+patch([bathy.dist bathy.dist(end) 0],...
+  [bathy.z params.sillDepth params.sillDepth],[0.7 0.7 0.7],...
+  'linestyle','none')
 scatter(inst_xz(:,1),inst_xz(:,2),20,'k','fill')
 contour(bathy.dist,z,RHO_bar,1024:1032,'k','ShowText','on')
-axis tight ij
+axis ij
+ylim([0 params.sillDepth])
+xlim([0 bathy.dist(end)])
 colorbar
 colormap(ax1,redblue(26))
 caxis([-c_a c_a])
@@ -48,9 +52,13 @@ title({params.channel;'Mean Along Strait Velocity [m/s]'})
 ax2 = subplot(222);
 contourf(bathy.dist,z,ASV_std,25,'linestyle','none')
 hold on
-plot(bathy.dist,bathy.z,'k')
+patch([bathy.dist bathy.dist(end) 0],...
+  [bathy.z params.sillDepth params.sillDepth],[0.7 0.7 0.7],...
+  'linestyle','none')
 scatter(inst_xz(:,1),inst_xz(:,2),20,'k','fill')
-axis tight ij
+axis ij
+ylim([0 params.sillDepth])
+xlim([0 bathy.dist(end)])
 colorbar
 colormap(ax2,paruly(25))
 caxis([0 c_as])
@@ -60,10 +68,14 @@ title('Std of Along Strait Velocity [m/s]')
 ax3 = subplot(223);
 contourf(bathy.dist,z,XSV_bar,25,'linestyle','none')
 hold on
-plot(bathy.dist,bathy.z,'k')
+patch([bathy.dist bathy.dist(end) 0],...
+  [bathy.z params.sillDepth params.sillDepth],[0.7 0.7 0.7],...
+  'linestyle','none')
 scatter(inst_xz(:,1),inst_xz(:,2),20,'k','fill')
 contour(bathy.dist,z,TEM_bar,'k','ShowText','on')
-axis tight ij
+axis ij
+ylim([0 params.sillDepth])
+xlim([0 bathy.dist(end)])
 colorbar
 colormap(ax3,redblue(26))
 caxis([-c_x c_x])
@@ -74,10 +86,14 @@ title('Mean Cross Strait Velocity [m/s]')
 ax4 = subplot(224);
 contourf(bathy.dist,z,XSV_std,25,'linestyle','none')
 hold on
-plot(bathy.dist,bathy.z,'k')
+patch([bathy.dist bathy.dist(end) 0],...
+  [bathy.z params.sillDepth params.sillDepth],[0.7 0.7 0.7],...
+  'linestyle','none')
 scatter(inst_xz(:,1),inst_xz(:,2),20,'k','fill')
 contour(bathy.dist,z,SAL_bar,'k','ShowText','on')
-axis tight ij
+axis ij
+ylim([0 params.sillDepth])
+xlim([0 bathy.dist(end)])
 colorbar
 colormap(ax4,paruly(25))
 caxis([0 c_xs])
@@ -85,8 +101,7 @@ title('Std of Cross Strait Velocity [m/s]')
 
 print([params.pathfig params.channel '/channelGrid/meanVelXsection_' ...
   params.channel '_' params.xpassage_method 'Xpassage_'...
-  params.interp_method 'Interp_' params.bottom_method '_' ...
-  params.surface_method],'-dpng')
+  params.bottom_method '_' params.surface_method],'-dpng')
 
 
 %% Mean profile of transport and std
@@ -95,7 +110,8 @@ figure('position',[0 0 600 600])
 herrorbar(Tbar_z,z,Tstd_z,'b')
 hold on
 plot(Tbar_z,z,'b')
-axis ij tight
+axis ij
+ylim([0 params.sillDepth])
 grid on
 ylabel('Depth [m]')
 xlabel('Transport per unit depth [Sv/m]')
@@ -103,8 +119,7 @@ title([params.channel ', Mean Deployment Transport ' Tbar ' Sv'])
 
 print([params.pathfig params.channel '/channelGrid/meanTransportProfile_'...
   params.channel '_' params.xpassage_method 'Xpassage_'...
-  params.interp_method 'Interp_' params.bottom_method '_' ...
-  params.surface_method],'-dpng')
+  params.bottom_method '_' params.surface_method],'-dpng')
 
 
 %% Plot Transport per unit depth
@@ -134,5 +149,5 @@ title([params.channel ', Transport per unit depth [Sv/m]'])
 
 print([params.pathfig params.channel '/channelGrid/'...
   'transportPerDepthTimeseries_' params.channel '_' ...
-  params.xpassage_method 'Xpassage_' params.interp_method 'Interp_' ...
-  params.bottom_method '_' params.surface_method],'-dpng')
+  params.xpassage_method 'Xpassage_' params.bottom_method '_' ...
+  params.surface_method],'-dpng')
