@@ -5,37 +5,46 @@ function DS = moorFillPres(DS)
 % at the same planned depth, only use one of the pressure and temperature
 % records, chosing the ones with the longer timeseries.
 
-% Buffer for removign nearby sensors
+% Buffer for removing nearby sensors
 zbuf = 5;   % [m]
 
 %% Find indecies of sensors deployed at similar depths (within 5 meters)
 
-% Initialize indecies for which pressure and temperatyre sensors to use
-iUseP = true(size(DS.pdep));
-iUseT = true(size(DS.pdep));
+% Initialize indecies for which pressure and temperature sensors to use
+iUse = true(size(DS.pdep));
 
-for i = 1:length(iUseP)
+for i = 1:length(iUse)
+  % Find the vertical distance between sensors
   zdif = abs(DS.pdep(i)-DS.pdep);
+  % See if any are within 5 m
   idup = find(zdif <= zbuf);
-  if ~isscalar(idup)
-    tcount = sum(isnan(DS.temp(idup,:)),2);
-    pcount = sum(isnan(DS.pres(idup,:)),2);
-    [~,ikeepT] = sort(tcount);
-    [~,ikeepP] = sort(pcount);
-    idupT = idup(ikeepT);
-    idupP = idup(ikeepP);
-    iUseT(idupT(2:end)) = false;
-    iUseP(idupP(2:end)) = false;
+  % Check if any other planned depths are within 5 m
+  if numel(idup) > 1
+    % See if one of the duplicated planned depths is a SBE37
+    iSBE37 = strcmp(DS.inst(idup),'SBE37');
+    if sum(iSBE37) > 0
+      iUse(idup) = iSBE37;
+    else
+      % If not, use follow algorithm
+      % Count up number of nans in pressure
+      pcount = sum(isnan(DS.pres(idup,:)),2);
+      % Sort count of nans
+      [~,ikeepP] = sort(pcount);
+      % Get indecies for duplicates
+      idupP = idup(ikeepP);
+      % Remove signals with fewest nans
+      iUse(idupP(2:end)) = false;
+    end
   end
 end
 
 %% Remove unnecessary data
 
-DS.pres = DS.pres(iUseP,:);
-DS.pdep = DS.pdep(iUseP);
-DS.snum = DS.snum(iUseP);
-DS.inst = DS.inst(iUseP);
-DS.temp = DS.temp(iUseT,:);
+DS.pres = DS.pres(iUse,:);
+DS.pdep = DS.pdep(iUse);
+DS.snum = DS.snum(iUse);
+DS.inst = DS.inst(iUse);
+DS.temp = DS.temp(iUse,:);
 
 
 %% Interpolate for pressure at each timestep for instruments with temp data

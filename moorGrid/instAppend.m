@@ -2,7 +2,6 @@ function [TT,SS,UV] = instAppend(data,TT,SS,UV)
 % Append instrument timeseries onto intermediate mooring grids
 
 %% Append intermediate temperature grid
-
 TT.temp = [TT.temp; data.temperature(:)'];
 TT.pdep = [TT.pdep; data.plannedMeterDepth];
 TT.snum{end+1,1} = data.serialNo;
@@ -16,7 +15,7 @@ else
 end
 
 
-%% Append intermediate salinity grid is applicable
+%% Append intermediate salinity grid if applicable
 
 if isfield(data,'salinity')
   SS.psal = [SS.psal; medfilt1(data.salinity(:),'omitnan')'];
@@ -24,6 +23,12 @@ if isfield(data,'salinity')
   SS.snum{end+1,1} = data.serialNo;
   SS.inst{end+1,1} = data.meterType;
   SS.pres = [SS.pres; data.pressure(:)'];
+  % elseif isfield(data,'salinity_fromCTDref') && ~isfield(data,'salinity')
+  %   SS.psal = [SS.psal; medfilt1(data.salinity_fromCTDref(:),'omitnan')'];
+  %   SS.pdep = [SS.pdep; data.plannedMeterDepth];
+  %   SS.snum{end+1,1} = data.serialNo;
+  %   SS.inst{end+1,1} = data.meterType;
+  %   SS.pres = [SS.pres; data.pressure(:)'];
 end
 
 
