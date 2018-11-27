@@ -23,13 +23,7 @@ if size(x,1)==1
   wind=wind';
 end
 
-
-% I believe the following is the correct normalization for the PSD.
-W1 = 2/norm(wind)^2 ;
-% jonathan's psd routine which is about twice the speed of the canned
-% one....
-
-% preform fft on first segment
+% fft first segment
 total=fft(detrend(x(1:nfft)).*wind);
 % get power from first fft segment
 powe=total(2:floor(nfft/2+1)).*conj(total(2:floor(nfft/2+1)));
@@ -44,6 +38,11 @@ if (repeats-1)
     powe=powe+total(2:nfft/2+1).*conj(total(2:nfft/2+1));
   end
 end
+
+% I believe the following is the correct normalization for the PSD.
+W1 = 2/norm(wind)^2 ;
+% jonathan's psd routine which is about twice the speed of the canned
+% one....
 % multiple by 2 to account for only using half of the fft, divide by
 % repeat to get mean power for all segments and normalize by sampling
 % frequency
